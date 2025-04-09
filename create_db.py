@@ -1,6 +1,5 @@
 import sqlite3
 
-# Connect to SQLite database (creates file if it doesn't exist)
 conn = sqlite3.connect('electronics_store.db')
 cursor = conn.cursor()
 

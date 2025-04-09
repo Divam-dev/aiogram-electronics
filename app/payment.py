@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Redsys payment token from environment
 PROVIDER_TOKEN = os.getenv("REDSYS_PROVIDER_TOKEN", "2051251535:TEST:OTk5MDA4ODgxLTAwNQ")
 
 def create_redsys_invoice(order_data, user_data):
@@ -28,8 +27,7 @@ def create_redsys_invoice(order_data, user_data):
         total_amount += price * quantity
         product_descriptions.append(f"{flower_name} x{quantity}")
     
-    # Format for Redsys (convert to smallest currency unit - kopecks for UAH, cents for USD)
-    # Redsys requires amounts in the smallest currency unit
+    # Format for Redsys
     currency_code = user_data.get("currency_code", "UAH")
     total_amount_integer = int(total_amount * 100)  # Convert to kopecks/cents
     
@@ -39,7 +37,7 @@ def create_redsys_invoice(order_data, user_data):
     
     # Create product description
     description = ", ".join(product_descriptions)
-    if len(description) > 100:  # Telegram has limits on description length
+    if len(description) > 100:
         description = description[:97] + "..."
     
     # Create invoice data for Telegram's payment API
@@ -58,5 +56,5 @@ def create_redsys_invoice(order_data, user_data):
     return {
         "invoice_data": invoice_data,
         "orderReference": order_reference,
-        "reason": "Ok"  # For compatibility with existing code
+        "reason": "Ok"
     }

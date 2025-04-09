@@ -14,28 +14,37 @@ from app.handlers.cart import view_cart
 router = Router()
 
 @router.message(CommandStart())
-@router.message(Command("help"))
-async def cmd_start_or_help(message: Message, state: FSMContext):
+async def cmd_start(message: Message, state: FSMContext):
     chat_id = message.chat.id
     
-    # Check if customer exists
-    if customer_exists(chat_id):
-        # If customer exists, skip currency selection
-        await send_categories_menu(message, state)
-        return
+    first_name = message.from_user.first_name
+    last_name = message.from_user.last_name
     
-    # If new customer, add them to database and ask for currency
-    if message.text == "/start":
-        first_name = message.from_user.first_name
-        last_name = message.from_user.last_name
+    if not customer_exists(chat_id):
         add_new_customer(chat_id, first_name, last_name)
         
-        text = f"Вітаю {first_name}, я допоможу тобі з вибором електроніки 📱.\nВиберіть валюту:"
+    data = await state.get_data()
+    if "currency" in data:
+        await send_categories_menu(message, state)
     else:
-        text = "Виберіть валюту:"
-    
+        text = f"Вітаю {first_name}, я допоможу тобі з вибором електроніки 📱.\nВиберіть валюту:"
+        await state.set_state(OrderStates.choosing_currency)
+        await message.answer(text, reply_markup=get_currency_kb())
+
+@router.message(Command("help"))
+async def cmd_help(message: Message):
+    """Show help message with available commands"""
+    help_text = "Команди бота:\n" \
+                "/start - запустити бота\n" \
+                "/currency - змінити валюту\n" \
+                "/weather - прогноз погоди на сьогодні та наступні дні"
+    await message.answer(help_text)
+
+@router.message(Command("currency"))
+async def cmd_currency(message: Message, state: FSMContext):
+    """Change currency handler"""
     await state.set_state(OrderStates.choosing_currency)
-    await message.answer(text, reply_markup=get_currency_kb())
+    await message.answer("Виберіть валюту:", reply_markup=get_currency_kb())
 
 @router.message(OrderStates.choosing_currency, F.text.in_(["USD🇺🇸", "UAH🇺🇦"]))
 async def process_currency_selection(message: Message, state: FSMContext):
