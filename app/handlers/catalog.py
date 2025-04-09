@@ -3,8 +3,11 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 
-from app.keyboards import get_currency_kb, get_categories_kb, get_colors_kb, get_flower_inline_kb, get_menu_kb
-from data_handler import get_category, get_colors, get_flowers, get_flower_by_id, currency_convert
+from app.keyboards import get_currency_kb, get_categories_kb, get_product_inline_kb, get_menu_kb
+from app.data_handler import (
+    get_category, get_products_by_category, get_product_by_id,
+    currency_convert, customer_exists, add_new_customer
+)
 from app.handlers.common import OrderStates, carts
 from app.handlers.cart import view_cart
 
@@ -13,13 +16,25 @@ router = Router()
 @router.message(CommandStart())
 @router.message(Command("help"))
 async def cmd_start_or_help(message: Message, state: FSMContext):
-    await state.set_state(OrderStates.choosing_currency)
+    chat_id = message.chat.id
     
+    # Check if customer exists
+    if customer_exists(chat_id):
+        # If customer exists, skip currency selection
+        await send_categories_menu(message, state)
+        return
+    
+    # If new customer, add them to database and ask for currency
     if message.text == "/start":
-        text = f"Вітаю {message.from_user.first_name}, я допоможу тобі з вибором букету 💐.\nВиберіть валюту:"
+        first_name = message.from_user.first_name
+        last_name = message.from_user.last_name
+        add_new_customer(chat_id, first_name, last_name)
+        
+        text = f"Вітаю {first_name}, я допоможу тобі з вибором електроніки 📱.\nВиберіть валюту:"
     else:
         text = "Виберіть валюту:"
     
+    await state.set_state(OrderStates.choosing_currency)
     await message.answer(text, reply_markup=get_currency_kb())
 
 @router.message(OrderStates.choosing_currency, F.text.in_(["USD🇺🇸", "UAH🇺🇦"]))
@@ -41,56 +56,49 @@ async def send_categories_menu(message: Message, state: FSMContext):
 async def process_category_selection(message: Message, state: FSMContext):
     category = message.text
     await state.update_data(category=category)
-    await state.set_state(OrderStates.choosing_color)
-    
-    await message.answer(
-        f"Ви обрали категорію {category}. Тепер виберіть бажаний колір:", 
-        reply_markup=get_colors_kb(category)
-    )
+    await display_products(message, state, category)
 
-@router.message(OrderStates.choosing_color)
-async def process_color_selection(message: Message, state: FSMContext):
-    color = message.text
+async def display_products(message: Message, state: FSMContext, category):
+    await state.set_state(OrderStates.viewing_products)
     
-    if color == "🔙 Назад до меню":
-        await send_categories_menu(message, state)
-        return
-    
-    if color == "🛒 Переглянути кошик":
-        await view_cart(message, state)
-        return
-    
-    data = await state.get_data()
-    category = data.get("category")
-    
-    colors = get_colors(category)
-    if color not in colors:
-        await message.answer("Будь ласка, виберіть колір з клавіатури.")
-        return
-    
-    await state.update_data(color=color)
-    await state.set_state(OrderStates.viewing_flowers)
-    
-    flowers = get_flowers(category, color)
+    products = get_products_by_category(category)
     
     await message.answer(
-        f"Знайдено {len(flowers)} товарів:", 
+        f"Знайдено {len(products)} товарів в категорії {category}:", 
         reply_markup=get_menu_kb()
     )
     
+    data = await state.get_data()
     currency = data.get("currency", "UAH🇺🇦")
     usd_rate = float(currency_convert()) if currency == "USD🇺🇸" else 1
     currency_symbol = "$" if currency == "USD🇺🇸" else "₴"
     
-    for flower in flowers:
-        flower_id = flower[0]
-        price = round(float(flower[5]) / usd_rate, 2)
+    for product in products:
+        product_id = product[0]
+        name = product[1]
+        price = round(float(product[3]) / usd_rate, 2)
+        stock = product[4]
+        full_name = product[5] or name
+        image_url = product[6]
         
-        await message.answer_photo(
-            flower[6],
-            f"Назва: {flower[4]}\nКатегорія: {flower[1]}\nКолір: {flower[2]}\nЦіна: {price} {currency_symbol}",
-            reply_markup=get_flower_inline_kb(flower_id)
+        product_info = (
+            f"Назва: {full_name}\n"
+            f"Категорія: {category}\n"
+            f"Ціна: {price} {currency_symbol}\n"
+            f"В наявності: {stock} шт."
         )
+        
+        if image_url:
+            await message.answer_photo(
+                image_url,
+                product_info,
+                reply_markup=get_product_inline_kb(product_id)
+            )
+        else:
+            await message.answer(
+                product_info,
+                reply_markup=get_product_inline_kb(product_id)
+            )
 
 @router.message(F.text == "🔙 Назад до меню")
 async def back_to_menu(message: Message, state: FSMContext):
@@ -98,22 +106,22 @@ async def back_to_menu(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("buy_"))
 async def process_buy(callback: CallbackQuery, state: FSMContext):
-    flower_id = callback.data.split("_")[1]
+    product_id = callback.data.split("_")[1]
     chat_id = callback.message.chat.id
     
-    flower = get_flower_by_id(flower_id)
-    if flower:
-        flower_name = flower[4]
-        flower_price = float(flower[5])
+    product = get_product_by_id(product_id)
+    if product:
+        product_name = product[1]
+        product_price = float(product[3])
         
         if chat_id not in carts:
             carts[chat_id] = {}
         
-        if flower_name in carts[chat_id]:
-            carts[chat_id][flower_name]["quantity"] += 1
+        if product_name in carts[chat_id]:
+            carts[chat_id][product_name]["quantity"] += 1
         else:
-            carts[chat_id][flower_name] = {"quantity": 1, "price": flower_price}
+            carts[chat_id][product_name] = {"quantity": 1, "price": product_price}
         
-        await callback.answer(f"✅ {flower_name} додано до кошика!")
+        await callback.answer(f"✅ {product_name} додано до кошика!")
     else:
         await callback.answer("❌ Помилка! Товар не знайдено.")

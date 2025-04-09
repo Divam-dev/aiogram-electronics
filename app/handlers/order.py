@@ -2,11 +2,14 @@ from aiogram import F, Router
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.enums import ContentType
+import sqlite3
+from datetime import datetime
 
 from app.keyboards import get_menu_kb, get_delivery_method_kb
 from app.handlers.common import OrderStates, carts
 from app.handlers.cart import view_cart
 from app.payment import create_redsys_invoice
+from app.data_handler import get_customer_by_chat_id, get_product_by_id
 
 router = Router()
 
@@ -14,7 +17,6 @@ router = Router()
 async def process_self_pickup(message: Message, state: FSMContext):
     await state.update_data(delivery_method="self_pickup")
     
-    # Для самовивозу нам все ще потрібен номер телефону
     await state.set_state(OrderStates.entering_phone)
     await message.answer(
         "Ви обрали самовивіз. Для оформлення замовлення, будь ласка, введіть ваш номер телефону у форматі +380XXXXXXXXX:",
@@ -33,8 +35,6 @@ async def process_immediate_payment(message: Message, state: FSMContext):
     await state.update_data(delivery_method="immediate_payment")
     
     try:
-        # Створюємо дані користувача для платіжної системи
-        # Тут не потрібні телефон та email, оскільки їх збере платіжна форма
         user_data = {
             "chat_id": chat_id,
             "first_name": message.from_user.first_name,
@@ -128,18 +128,94 @@ async def process_self_pickup_confirmation(message: Message, state: FSMContext):
     chat_id = message.chat.id
     data = await state.get_data()
     
-    await message.answer(
-        "✅ Ваше замовлення на самовивіз успішно оформлено!\n\n"
-        f"Наш менеджер зв'яжеться з вами за номером {data.get('phone')} "
-        "для підтвердження деталей замовлення та адреси самовивозу.\n\n"
-        "Дякуємо за замовлення!",
-        reply_markup=get_menu_kb()
-    )
+    if chat_id not in carts or not carts[chat_id]:
+        await message.answer("🛒 Ваш кошик порожній!")
+        return
     
-    if chat_id in carts:
-        carts[chat_id] = {}
-    
-    await state.set_state(OrderStates.choosing_category)
+    # Save order to database
+    try:
+        # Get customer id based on chat_id
+        conn = sqlite3.connect('electronics_store.db')
+        cursor = conn.cursor()
+        
+        # Get customer ID
+        cursor.execute("SELECT id FROM Customers WHERE chat_id = ?", (chat_id,))
+        customer_id = cursor.fetchone()[0]
+        
+        # Update database with each ordered product
+        for product_name, item in carts[chat_id].items():
+            quantity = item.get("quantity", 1)
+            price = item.get("price", 0)
+            total = quantity * price
+            
+            # Get product ID
+            cursor.execute("SELECT id FROM Products WHERE name = ?", (product_name,))
+            product_id_result = cursor.fetchone()
+            
+            if not product_id_result:
+                continue
+                
+            product_id = product_id_result[0]
+            
+            # Create order
+            cursor.execute("""
+                INSERT INTO Orders 
+                (customer_id, product_id, quantity, total_price, delivery_method, status) 
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (customer_id, product_id, quantity, total, "self_pickup", "Pending"))
+            
+            # Update product stock
+            cursor.execute("""
+                UPDATE Products 
+                SET stock = stock - ? 
+                WHERE id = ? AND stock >= ?
+            """, (quantity, product_id, quantity))
+        
+        # Save changes
+        conn.commit()
+        
+        # Update customer phone if provided
+        if data.get('phone'):
+            cursor.execute("""
+                UPDATE Customers 
+                SET phone_number = ? 
+                WHERE chat_id = ?
+            """, (data.get('phone'), chat_id))
+            
+        # Update customer email if provided
+        if data.get('email'):
+            cursor.execute("""
+                UPDATE Customers 
+                SET email = ? 
+                WHERE chat_id = ?
+            """, (data.get('email'), chat_id))
+            
+        # Save changes again
+        conn.commit()
+        conn.close()
+        
+        # Send confirmation to user
+        await message.answer(
+            "✅ Ваше замовлення на самовивіз успішно оформлено!\n\n"
+            f"Наш менеджер зв'яжеться з вами за номером {data.get('phone')} "
+            "для підтвердження деталей замовлення та адреси самовивозу.\n\n"
+            "Дякуємо за замовлення!",
+            reply_markup=get_menu_kb()
+        )
+        
+        # Clear cart
+        if chat_id in carts:
+            carts[chat_id] = {}
+        
+        await state.set_state(OrderStates.choosing_category)
+        
+    except Exception as e:
+        await message.answer(
+            f"❌ Виникла помилка при оформленні замовлення: {str(e)}.\n"
+            "Будь ласка, спробуйте ще раз або зв'яжіться з нами для допомоги.",
+            reply_markup=get_menu_kb()
+        )
+        await state.set_state(OrderStates.choosing_category)
 
 # Handle pre-checkout queries
 @router.pre_checkout_query()
@@ -149,21 +225,98 @@ async def process_pre_checkout_query(pre_checkout_query, bot):
 # Handle successful payments
 @router.message(F.content_type == ContentType.SUCCESSFUL_PAYMENT)
 async def process_successful_payment(message: Message, state: FSMContext):
-    # Зберігаємо контактні дані з платіжної форми для можливого використання
-    payment_info = message.successful_payment
-    
-    # Очищаємо кошик користувача
     chat_id = message.chat.id
-    if chat_id in carts:
-        carts[chat_id] = {}
     
-    await message.answer(
-        "✅ Дякуємо за оплату! Ваше замовлення успішно оформлено.\n"
-        "Наш менеджер зв'яжеться з вами найближчим часом для уточнення деталей доставки.",
-        reply_markup=get_menu_kb()
-    )
-    
-    await state.set_state(OrderStates.choosing_category)
+    try:
+        # Get customer id based on chat_id
+        conn = sqlite3.connect('electronics_store.db')
+        cursor = conn.cursor()
+        
+        # Get customer ID
+        cursor.execute("SELECT id FROM Customers WHERE chat_id = ?", (chat_id,))
+        customer_id = cursor.fetchone()[0]
+        
+        # Зберігаємо контактні дані з платіжної форми для можливого використання
+        payment_info = message.successful_payment
+        
+        # Update contact information if available
+        if payment_info.order_info:
+            if payment_info.order_info.name:
+                name_parts = payment_info.order_info.name.split()
+                first_name = name_parts[0] if name_parts else ""
+                last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+                
+                cursor.execute("""
+                    UPDATE Customers 
+                    SET first_name = ?, last_name = ? 
+                    WHERE chat_id = ?
+                """, (first_name, last_name, chat_id))
+            
+            if getattr(payment_info.order_info, 'phone_number', None):
+                cursor.execute("""
+                    UPDATE Customers 
+                    SET phone_number = ? 
+                    WHERE chat_id = ?
+                """, (payment_info.order_info.phone_number, chat_id))
+                
+            if getattr(payment_info.order_info, 'email', None):
+                cursor.execute("""
+                    UPDATE Customers 
+                    SET email = ? 
+                    WHERE chat_id = ?
+                """, (payment_info.order_info.email, chat_id))
+        
+        # Update database with each ordered product
+        for product_name, item in carts[chat_id].items():
+            quantity = item.get("quantity", 1)
+            price = item.get("price", 0)
+            total = quantity * price
+            
+            # Get product ID
+            cursor.execute("SELECT id FROM Products WHERE name = ?", (product_name,))
+            product_id_result = cursor.fetchone()
+            
+            if not product_id_result:
+                continue
+                
+            product_id = product_id_result[0]
+            
+            # Create order
+            cursor.execute("""
+                INSERT INTO Orders 
+                (customer_id, product_id, quantity, total_price, delivery_method, status) 
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (customer_id, product_id, quantity, total, "delivery", "Paid"))
+            
+            # Update product stock
+            cursor.execute("""
+                UPDATE Products 
+                SET stock = stock - ? 
+                WHERE id = ? AND stock >= ?
+            """, (quantity, product_id, quantity))
+        
+        conn.commit()
+        conn.close()
+        
+        # Очищаємо кошик користувача
+        if chat_id in carts:
+            carts[chat_id] = {}
+        
+        await message.answer(
+            "✅ Дякуємо за оплату! Ваше замовлення успішно оформлено.\n"
+            "Наш менеджер зв'яжеться з вами найближчим часом для уточнення деталей доставки.",
+            reply_markup=get_menu_kb()
+        )
+        
+        await state.set_state(OrderStates.choosing_category)
+        
+    except Exception as e:
+        await message.answer(
+            f"❌ Виникла помилка при оформленні замовлення: {str(e)}.\n"
+            "Будь ласка, зв'яжіться з нами для допомоги. Ваша оплата отримана.",
+            reply_markup=get_menu_kb()
+        )
+        await state.set_state(OrderStates.choosing_category)
 
 # Обробник для підтвердження оплати
 @router.message(OrderStates.confirming_payment)

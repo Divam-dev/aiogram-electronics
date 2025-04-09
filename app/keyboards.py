@@ -5,7 +5,7 @@ from aiogram.types import (
     InlineKeyboardButton
 )
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
-from data_handler import get_category, get_colors
+from app.data_handler import get_category
 
 def get_currency_kb() -> ReplyKeyboardMarkup:
     """Create currency selection keyboard."""
@@ -33,23 +33,6 @@ def get_categories_kb() -> ReplyKeyboardMarkup:
         input_field_placeholder="Виберіть категорію..."
     )
 
-def get_colors_kb(category: str) -> ReplyKeyboardMarkup:
-    """Create colors keyboard for a specific category."""
-    builder = ReplyKeyboardBuilder()
-    
-    for color in get_colors(category):
-        builder.add(KeyboardButton(text=color))
-    
-    builder.add(
-        KeyboardButton(text="🔙 Назад до меню"),
-        KeyboardButton(text="🛒 Переглянути кошик")
-    )
-    
-    return builder.adjust(2).as_markup(
-        resize_keyboard=True,
-        input_field_placeholder="Виберіть колір..."
-    )
-
 def get_menu_kb() -> ReplyKeyboardMarkup:
     """Create simple menu navigation keyboard."""
     keyboard = ReplyKeyboardMarkup(
@@ -63,12 +46,12 @@ def get_menu_kb() -> ReplyKeyboardMarkup:
     )
     return keyboard
 
-def get_flower_inline_kb(flower_id: str) -> InlineKeyboardMarkup:
-    """Create inline keyboard for buying a flower."""
+def get_product_inline_kb(product_id: str) -> InlineKeyboardMarkup:
+    """Create inline keyboard for buying a product."""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(
         text="🛒 Купити", 
-        callback_data=f"buy_{flower_id}"
+        callback_data=f"buy_{product_id}"
     ))
     return builder.as_markup()
 
