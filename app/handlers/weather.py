@@ -1,5 +1,6 @@
 import requests
 import logging
+import os
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
@@ -12,7 +13,7 @@ class WeatherStates(StatesGroup):
 
 router = Router()
 
-WEATHER_API_KEY = "0308ca00be9c15d60b69efec5c543f9f"
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 WEATHER_API_URL = "https://api.openweathermap.org/data/2.5"
 
 weather_emojis = {
