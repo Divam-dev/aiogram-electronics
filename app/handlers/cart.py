@@ -2,8 +2,11 @@ from aiogram import F, Router
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-from app.keyboards import get_cart_kb, get_menu_kb, get_delivery_method_kb
-from app.data_handler import get_product_price, currency_convert
+from app.keyboards.basic import get_menu_kb
+from app.keyboards.cart import get_cart_kb
+from app.keyboards.order import get_delivery_method_kb
+from app.services.db_service import get_product_price
+from app.services.currency_service import currency_convert
 from app.handlers.common import OrderStates, carts
 
 router = Router()

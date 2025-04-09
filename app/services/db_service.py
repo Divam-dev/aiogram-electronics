@@ -1,13 +1,7 @@
 import sqlite3
-import requests
-
-def currency_convert():
-    response = requests.get('https://api.privatbank.ua/p24api/pubinfo?exchange&coursid=5') 
-    data = response.json()
-    usd_price = next(item["sale"] for item in data if item["ccy"] == "USD")
-    return usd_price
 
 def get_category():
+    """Get list of all product categories"""
     conn = sqlite3.connect('electronics_store.db')
     cursor = conn.cursor()
     cursor.execute("SELECT DISTINCT category FROM Products")
@@ -16,6 +10,7 @@ def get_category():
     return list(set(category[0] for category in categories))
 
 def get_products_by_category(category):
+    """Get all products for a specific category"""
     conn = sqlite3.connect('electronics_store.db')
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM Products WHERE category = ?", (category,))
@@ -33,6 +28,7 @@ def get_product_by_id(product_id):
     return product
 
 def get_product_price(product_name):
+    """Get price for a specific product by name"""
     conn = sqlite3.connect('electronics_store.db')
     cursor = conn.cursor()
     cursor.execute("SELECT price FROM Products WHERE name = ?", (product_name,))
@@ -71,3 +67,59 @@ def add_new_customer(chat_id, first_name, last_name=None):
     )
     conn.commit()
     conn.close()
+
+def create_order(customer_id, product_id, quantity, total_price, delivery_method, status):
+    """Create a new order record"""
+    conn = sqlite3.connect('electronics_store.db')
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO Orders 
+        (customer_id, product_id, quantity, total_price, delivery_method, status) 
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (customer_id, product_id, quantity, total_price, delivery_method, status))
+    
+    cursor.execute("""
+        UPDATE Products 
+        SET stock = stock - ? 
+        WHERE id = ? AND stock >= ?
+    """, (quantity, product_id, quantity))
+    
+    conn.commit()
+    conn.close()
+    
+    return True
+
+def update_customer_info(chat_id, phone=None, email=None, first_name=None, last_name=None):
+    """Update customer information"""
+    conn = sqlite3.connect('electronics_store.db')
+    cursor = conn.cursor()
+    
+    updates = []
+    params = []
+    
+    if phone:
+        updates.append("phone_number = ?")
+        params.append(phone)
+        
+    if email:
+        updates.append("email = ?")
+        params.append(email)
+        
+    if first_name:
+        updates.append("first_name = ?")
+        params.append(first_name)
+        
+    if last_name:
+        updates.append("last_name = ?")
+        params.append(last_name)
+    
+    if updates:
+        query = f"UPDATE Customers SET {', '.join(updates)} WHERE chat_id = ?"
+        params.append(chat_id)
+        
+        cursor.execute(query, params)
+        conn.commit()
+    
+    conn.close()
+    return True

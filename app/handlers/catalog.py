@@ -3,11 +3,12 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 
-from app.keyboards import get_currency_kb, get_categories_kb, get_product_inline_kb, get_menu_kb
-from app.data_handler import (
-    get_category, get_products_by_category, get_product_by_id,
-    currency_convert, customer_exists, add_new_customer
+from app.keyboards.basic import get_menu_kb, get_currency_kb
+from app.keyboards.catalog import get_categories_kb, get_product_inline_kb
+from app.services.db_service import (
+    get_category, get_products_by_category, get_product_by_id, customer_exists, add_new_customer
 )
+from app.services.currency_service import currency_convert
 from app.handlers.common import OrderStates, carts
 from app.handlers.cart import view_cart
 

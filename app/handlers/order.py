@@ -5,11 +5,11 @@ from aiogram.enums import ContentType
 import sqlite3
 from datetime import datetime
 
-from app.keyboards import get_menu_kb, get_delivery_method_kb
+from app.keyboards.basic import get_menu_kb
 from app.handlers.common import OrderStates, carts
 from app.handlers.cart import view_cart
-from app.payment import create_redsys_invoice
-from app.data_handler import get_customer_by_chat_id, get_product_by_id
+from app.services.payment_service import create_redsys_invoice
+from app.services.db_service import get_customer_by_chat_id, get_product_by_id
 
 router = Router()
 

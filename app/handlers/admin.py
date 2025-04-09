@@ -1,25 +1,24 @@
 from aiogram import F, Router
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import sqlite3
-
-from app.keyboards import (
+from app.keyboards.order import get_confirmation_kb
+from app.keyboards.admin import (
     get_admin_main_kb, get_admin_products_kb, get_admin_users_kb, 
-    get_admin_orders_kb, get_back_to_admin_kb, get_product_management_kb,
-    get_order_status_kb, get_confirmation_kb
+    get_admin_orders_kb, get_back_to_admin_kb,
+    get_order_status_kb
 )
 
 # Список ID адміністраторів
-ADMIN_IDS = [545363905]  # Замініть на реальні ID адміністраторів
+ADMIN_IDS = [545363905]
 
 router = Router()
 
 class AdminStates(StatesGroup):
     main_menu = State()
     
-    # Продукти
     products_menu = State()
     adding_product = State()
     adding_product_name = State()
@@ -30,11 +29,9 @@ class AdminStates(StatesGroup):
     adding_product_image = State()
     deleting_product = State()
     
-    # Користувачі
     users_menu = State()
     deleting_user = State()
     
-    # Замовлення
     orders_menu = State()
     changing_order_status = State()
     confirm_action = State()
@@ -57,8 +54,6 @@ async def admin_command(message: Message, state: FSMContext):
         reply_markup=get_admin_main_kb()
     )
     await state.set_state(AdminStates.main_menu)
-
-# --- ОСНОВНЕ МЕНЮ ---
 
 @router.message(AdminStates.main_menu, F.text == "📦 Товари")
 async def products_menu(message: Message, state: FSMContext):
@@ -95,8 +90,6 @@ async def back_to_admin_menu(message: Message, state: FSMContext):
         reply_markup=get_admin_main_kb()
     )
     await state.set_state(AdminStates.main_menu)
-
-# --- УПРАВЛІННЯ ТОВАРАМИ ---
 
 @router.message(AdminStates.products_menu, F.text == "📋 Переглянути товари")
 async def view_products(message: Message, state: FSMContext):
@@ -251,7 +244,6 @@ async def delete_product(message: Message, state: FSMContext):
         conn = sqlite3.connect('electronics_store.db')
         cursor = conn.cursor()
         
-        # Перевіряємо, чи існує товар з таким ID
         cursor.execute("SELECT name FROM Products WHERE id = ?", (product_id,))
         product = cursor.fetchone()
         
@@ -266,7 +258,6 @@ async def delete_product(message: Message, state: FSMContext):
         
         product_name = product[0]
         
-        # Видаляємо товар
         cursor.execute("DELETE FROM Products WHERE id = ?", (product_id,))
         conn.commit()
         conn.close()
@@ -288,8 +279,6 @@ async def delete_product(message: Message, state: FSMContext):
             reply_markup=get_admin_products_kb()
         )
         await state.set_state(AdminStates.products_menu)
-
-# --- УПРАВЛІННЯ КОРИСТУВАЧАМИ ---
 
 @router.message(AdminStates.users_menu, F.text == "📋 Переглянути користувачів")
 async def view_users(message: Message, state: FSMContext):
@@ -349,7 +338,6 @@ async def delete_user(message: Message, state: FSMContext):
         conn = sqlite3.connect('electronics_store.db')
         cursor = conn.cursor()
         
-        # Перевіряємо, чи існує користувач з таким ID
         cursor.execute("SELECT first_name, last_name FROM Customers WHERE id = ?", (user_id,))
         user = cursor.fetchone()
         
@@ -364,7 +352,6 @@ async def delete_user(message: Message, state: FSMContext):
         
         user_name = f"{user[0]} {user[1]}" if user[1] else user[0]
         
-        # Перевіряємо, чи є пов'язані замовлення
         cursor.execute("SELECT COUNT(*) FROM Orders WHERE customer_id = ?", (user_id,))
         orders_count = cursor.fetchone()[0]
         
@@ -379,7 +366,6 @@ async def delete_user(message: Message, state: FSMContext):
             conn.close()
             return
         
-        # Видаляємо користувача
         cursor.execute("DELETE FROM Customers WHERE id = ?", (user_id,))
         conn.commit()
         conn.close()
@@ -413,10 +399,8 @@ async def confirm_user_delete(message: Message, state: FSMContext):
         conn = sqlite3.connect('electronics_store.db')
         cursor = conn.cursor()
         
-        # Видаляємо замовлення користувача
         cursor.execute("DELETE FROM Orders WHERE customer_id = ?", (user_id,))
         
-        # Видаляємо користувача
         cursor.execute("DELETE FROM Customers WHERE id = ?", (user_id,))
         
         conn.commit()
@@ -443,8 +427,6 @@ async def cancel_user_delete(message: Message, state: FSMContext):
         reply_markup=get_admin_users_kb()
     )
     await state.set_state(AdminStates.users_menu)
-
-# --- УПРАВЛІННЯ ЗАМОВЛЕННЯМИ ---
 
 @router.message(AdminStates.orders_menu, F.text == "📋 Переглянути замовлення")
 async def view_orders(message: Message, state: FSMContext):
@@ -522,7 +504,6 @@ async def select_order_for_status_change(message: Message, state: FSMContext):
         conn = sqlite3.connect('electronics_store.db')
         cursor = conn.cursor()
         
-        # Перевіряємо, чи існує замовлення з таким ID
         cursor.execute("""
             SELECT o.id, p.name, o.status 
             FROM Orders o
