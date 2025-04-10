@@ -127,7 +127,6 @@ async def view_products(message: Message, state: FSMContext):
 
 @router.message(AdminStates.products_menu, F.text == "➕ Додати товар")
 async def add_product_start(message: Message, state: FSMContext):
-    """Початок процесу додавання товару"""
     await message.answer(
         "Введіть коротку назву товару:",
         reply_markup=get_back_to_admin_kb()
@@ -136,21 +135,18 @@ async def add_product_start(message: Message, state: FSMContext):
 
 @router.message(AdminStates.adding_product_name)
 async def add_product_name(message: Message, state: FSMContext):
-    """Обробка назви нового товару"""
     await state.update_data(product_name=message.text)
     await message.answer("Вкажіть категорію товару:")
     await state.set_state(AdminStates.adding_product_category)
 
 @router.message(AdminStates.adding_product_category)
 async def add_product_category(message: Message, state: FSMContext):
-    """Обробка категорії нового товару"""
     await state.update_data(product_category=message.text)
     await message.answer("Вкажіть ціну товару (лише число):")
     await state.set_state(AdminStates.adding_product_price)
 
 @router.message(AdminStates.adding_product_price)
 async def add_product_price(message: Message, state: FSMContext):
-    """Обробка ціни нового товару"""
     try:
         price = float(message.text)
         await state.update_data(product_price=price)
@@ -161,7 +157,6 @@ async def add_product_price(message: Message, state: FSMContext):
 
 @router.message(AdminStates.adding_product_stock)
 async def add_product_stock(message: Message, state: FSMContext):
-    """Обробка кількості нового товару"""
     try:
         stock = int(message.text)
         await state.update_data(product_stock=stock)
@@ -172,7 +167,6 @@ async def add_product_stock(message: Message, state: FSMContext):
 
 @router.message(AdminStates.adding_product_fullname)
 async def add_product_fullname(message: Message, state: FSMContext):
-    """Обробка повної назви нового товару"""
     fullname = None if message.text == '-' else message.text
     await state.update_data(product_fullname=fullname)
     await message.answer("Введіть URL зображення товару (або '-' якщо немає):")
@@ -180,7 +174,6 @@ async def add_product_fullname(message: Message, state: FSMContext):
 
 @router.message(AdminStates.adding_product_image)
 async def add_product_image(message: Message, state: FSMContext):
-    """Завершення додавання товару"""
     image_url = None if message.text == '-' else message.text
     data = await state.get_data()
     
@@ -221,7 +214,6 @@ async def add_product_image(message: Message, state: FSMContext):
 
 @router.message(AdminStates.products_menu, F.text == "🗑️ Видалити товар")
 async def delete_product_start(message: Message, state: FSMContext):
-    """Початок процесу видалення товару"""
     await message.answer(
         "Введіть ID товару для видалення:",
         reply_markup=get_back_to_admin_kb()
@@ -230,7 +222,6 @@ async def delete_product_start(message: Message, state: FSMContext):
 
 @router.message(AdminStates.deleting_product)
 async def delete_product(message: Message, state: FSMContext):
-    """Видалення товару за ID"""
     try:
         product_id = int(message.text)
         
@@ -275,7 +266,6 @@ async def delete_product(message: Message, state: FSMContext):
 
 @router.message(AdminStates.users_menu, F.text == "📋 Переглянути користувачів")
 async def view_users(message: Message, state: FSMContext):
-    """Перегляд всіх користувачів"""
     try:
         conn = sqlite3.connect('electronics_store.db')
         cursor = conn.cursor()
@@ -315,7 +305,6 @@ async def view_users(message: Message, state: FSMContext):
 
 @router.message(AdminStates.users_menu, F.text == "🗑️ Видалити користувача")
 async def delete_user_start(message: Message, state: FSMContext):
-    """Початок процесу видалення користувача"""
     await message.answer(
         "Введіть ID користувача для видалення:",
         reply_markup=get_back_to_admin_kb()
@@ -324,7 +313,6 @@ async def delete_user_start(message: Message, state: FSMContext):
 
 @router.message(AdminStates.deleting_user)
 async def delete_user(message: Message, state: FSMContext):
-    """Видалення користувача за ID"""
     try:
         user_id = int(message.text)
         
@@ -383,7 +371,6 @@ async def delete_user(message: Message, state: FSMContext):
 
 @router.message(AdminStates.confirm_action, F.text == "✅ Підтвердити")
 async def confirm_user_delete(message: Message, state: FSMContext):
-    """Підтвердження видалення користувача з замовленнями"""
     data = await state.get_data()
     user_id = data.get("user_id_to_delete")
     user_name = data.get("user_name_to_delete")
@@ -414,7 +401,6 @@ async def confirm_user_delete(message: Message, state: FSMContext):
 
 @router.message(AdminStates.confirm_action, F.text == "❌ Скасувати")
 async def cancel_user_delete(message: Message, state: FSMContext):
-    """Скасування видалення користувача"""
     await message.answer(
         "❌ Видалення користувача скасовано.",
         reply_markup=get_admin_users_kb()
@@ -423,7 +409,6 @@ async def cancel_user_delete(message: Message, state: FSMContext):
 
 @router.message(AdminStates.orders_menu, F.text == "📋 Переглянути замовлення")
 async def view_orders(message: Message, state: FSMContext):
-    """Перегляд всіх замовлень"""
     try:
         conn = sqlite3.connect('electronics_store.db')
         cursor = conn.cursor()
@@ -481,7 +466,6 @@ async def view_orders(message: Message, state: FSMContext):
 
 @router.message(AdminStates.orders_menu, F.text == "🔄 Змінити статус замовлення")
 async def change_order_status_start(message: Message, state: FSMContext):
-    """Початок процесу зміни статусу замовлення"""
     await message.answer(
         "Введіть ID замовлення для зміни статусу:",
         reply_markup=get_back_to_admin_kb()
@@ -490,7 +474,6 @@ async def change_order_status_start(message: Message, state: FSMContext):
 
 @router.message(AdminStates.changing_order_status)
 async def select_order_for_status_change(message: Message, state: FSMContext):
-    """Вибір замовлення для зміни статусу"""
     try:
         order_id = int(message.text)
         
@@ -536,7 +519,6 @@ async def select_order_for_status_change(message: Message, state: FSMContext):
 
 @router.message(AdminStates.changing_order_status, F.text.in_(["Pending", "Paid", "Processing", "Shipped", "Delivered", "Cancelled"]))
 async def update_order_status(message: Message, state: FSMContext):
-    """Оновлення статусу замовлення"""
     data = await state.get_data()
     order_id = data.get("order_id")
     new_status = message.text
