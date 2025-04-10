@@ -37,12 +37,10 @@ class AdminStates(StatesGroup):
     confirm_action = State()
 
 def is_admin(user_id):
-    """Перевірка чи є користувач адміністратором"""
     return user_id in ADMIN_IDS
 
 @router.message(Command("admin"))
 async def admin_command(message: Message, state: FSMContext):
-    """Обробка команди /admin"""
     user_id = message.from_user.id
     
     if not is_admin(user_id):
@@ -57,7 +55,6 @@ async def admin_command(message: Message, state: FSMContext):
 
 @router.message(AdminStates.main_menu, F.text == "📦 Товари")
 async def products_menu(message: Message, state: FSMContext):
-    """Обробка вибору розділу товарів"""
     await message.answer(
         "📦 Управління товарами. Виберіть дію:",
         reply_markup=get_admin_products_kb()
@@ -66,7 +63,6 @@ async def products_menu(message: Message, state: FSMContext):
 
 @router.message(AdminStates.main_menu, F.text == "👥 Користувачі")
 async def users_menu(message: Message, state: FSMContext):
-    """Обробка вибору розділу користувачів"""
     await message.answer(
         "👥 Управління користувачами. Виберіть дію:",
         reply_markup=get_admin_users_kb()
@@ -75,7 +71,6 @@ async def users_menu(message: Message, state: FSMContext):
 
 @router.message(AdminStates.main_menu, F.text == "📋 Замовлення")
 async def orders_menu(message: Message, state: FSMContext):
-    """Обробка вибору розділу замовлень"""
     await message.answer(
         "📋 Управління замовленнями. Виберіть дію:",
         reply_markup=get_admin_orders_kb()
@@ -84,7 +79,6 @@ async def orders_menu(message: Message, state: FSMContext):
 
 @router.message(F.text == "🔙 Назад до адмін-меню")
 async def back_to_admin_menu(message: Message, state: FSMContext):
-    """Повернення до головного адмін-меню"""
     await message.answer(
         "👑 Адмін-панель. Виберіть розділ:",
         reply_markup=get_admin_main_kb()
@@ -93,7 +87,6 @@ async def back_to_admin_menu(message: Message, state: FSMContext):
 
 @router.message(AdminStates.products_menu, F.text == "📋 Переглянути товари")
 async def view_products(message: Message, state: FSMContext):
-    """Перегляд всіх товарів"""
     try:
         conn = sqlite3.connect('electronics_store.db')
         cursor = conn.cursor()

@@ -3,7 +3,6 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 from app.services.db_service import get_category
 
 def get_categories_kb() -> ReplyKeyboardMarkup:
-    """Create categories keyboard with cart button."""
     builder = ReplyKeyboardBuilder()
     
     for category in get_category():
@@ -17,7 +16,6 @@ def get_categories_kb() -> ReplyKeyboardMarkup:
     )
 
 def get_product_inline_kb(product_id: str) -> InlineKeyboardMarkup:
-    """Create inline keyboard for buying a product."""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(
         text="🛒 Купити", 

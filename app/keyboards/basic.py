@@ -2,7 +2,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 def get_currency_kb() -> ReplyKeyboardMarkup:
-    """Create currency selection keyboard."""
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="UAH🇺🇦"), KeyboardButton(text="USD🇺🇸")]
@@ -14,7 +13,6 @@ def get_currency_kb() -> ReplyKeyboardMarkup:
     return keyboard
 
 def get_menu_kb() -> ReplyKeyboardMarkup:
-    """Create simple menu navigation keyboard."""
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [
